@@ -1,15 +1,47 @@
 CREATE TYPE person_gender AS ENUM ('M', 'F');
 
-CREATE TABLE table_product_types (
+CREATE TABLE table_persons (
     id SERIAL NOT NULL PRIMARY KEY,
-    name TEXT NOT NULL CHECK ( name != '' ),
-    description TEXT NOT NULL CHECK ( name != '' )
+    first_name TEXT NOT NULL CHECK ( first_name != '' ),
+    last_name TEXT NOT NULL CHECK ( last_name != '' ),
+    patronymic TEXT CHECK ( patronymic != '' ),
+    gender person_gender NOT NULL CHECK ( gender != '' ),
+    date_of_birth DATE
+);
+
+CREATE TABLE table_emails (
+    id SERIAL NOT NULL PRIMARY KEY,
+    person_id INT NOT NULL,
+    email TEXT NOT NULL CHECK ( email LIKE '%@%' ),
+    FOREIGN KEY (person_id) REFERENCES table_phone_numbers(id)
+        ON DELETE NO ACTION
+        ON UPDATE NO ACTION
+);
+
+CREATE TABLE table_phone_numbers (
+    id SERIAL NOT NULL PRIMARY KEY,
+    person_id INT NOT NULL,
+    phone_number TEXT NOT NULL CHECK ( phone_number != '' ),
+    FOREIGN KEY (person_id) REFERENCES table_phone_numbers(id)
+        ON DELETE NO ACTION
+        ON UPDATE NO ACTION
 );
 
 CREATE TABLE table_manufacturers (
     id SERIAL NOT NULL PRIMARY KEY,
     name TEXT NOT NULL CHECK ( name != '' ),
-    description TEXT NOT NULL CHECK ( name != '' )
+    address TEXT CHECK ( address != '' ),
+    contact_person_id INT NOT NULL,
+    description TEXT CHECK ( name != '' ),
+    FOREIGN KEY (contact_person_id) REFERENCES table_persons(id)
+        ON DELETE NO ACTION
+        ON UPDATE NO ACTION
+);
+
+CREATE TABLE table_product_types (
+    id SERIAL NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL CHECK ( name != '' ),
+    description TEXT CHECK ( name != '' )
 );
 
 CREATE TABLE table_products (
@@ -30,23 +62,44 @@ CREATE TABLE table_products (
         ON UPDATE NO ACTION
 );
 
-CREATE TABLE table_persons (
+CREATE TABLE table_positions (
     id SERIAL NOT NULL PRIMARY KEY,
-    first_name TEXT NOT NULL CHECK ( first_name != '' ),
-    last_name TEXT NOT NULL CHECK ( last_name != '' ),
-    patronymic TEXT CHECK ( patronymic != '' ),
-    gender person_gender NOT NULL CHECK ( gender != '' ),
-    email TEXT NOT NULL CHECK ( email LIKE '%@%' ),
-    phoneNumber TEXT NOT NULL CHECK ( phoneNumber != '' )
+    name TEXT NOT NULL CHECK ( name != '' ),
+    level TEXT NOT NULL CHECK ( level != '' ),
+    average_salary NUMERIC NOT NULL CHECK ( average_salary >= 0.0 ),
+    requirements TEXT NOT NULL CHECK ( requirements != '' ),
+    tasks TEXT NOT NULL CHECK ( tasks != '' ),
+    is_hiring BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE TABLE table_employees (
     id SERIAL NOT NULL PRIMARY KEY,
     person_id INT NOT NULL,
-    position TEXT NOT NULL CHECK ( position != '' ),
+    position_id INT NOT NULL,
     hiring_date DATE NOT NULL,
     salary NUMERIC NOT NULL CHECK ( salary >= 0.0 ),
     FOREIGN KEY (person_id) REFERENCES table_persons(id)
+        ON DELETE NO ACTION
+        ON UPDATE NO ACTION,
+    FOREIGN KEY (position_id) REFERENCES table_positions(id)
+        ON DELETE NO ACTION
+        ON UPDATE NO ACTION
+);
+
+CREATE TABLE table_price_history (
+    id SERIAL NOT NULL PRIMARY KEY,
+    product_id INT NOT NULL,
+    employee_id INT NOT NULL,
+    old_cost_price NUMERIC NOT NULL CHECK ( old_cost_price >= 0.0 ),
+    new_cost_price NUMERIC NOT NULL CHECK ( new_cost_price >= 0.0 ),
+    old_price NUMERIC NOT NULL CHECK ( old_price >= 0.0 ),
+    new_price NUMERIC NOT NULL CHECK ( new_price >= 0.0 ),
+    change_date DATE NOT NULL,
+    change_reason TEXT CHECK ( change_reason != '' ),
+    FOREIGN KEY (product_id) REFERENCES table_products(id)
+        ON DELETE NO ACTION
+        ON UPDATE NO ACTION,
+    FOREIGN KEY (employee_id) REFERENCES table_employees(id)
         ON DELETE NO ACTION
         ON UPDATE NO ACTION
 );
