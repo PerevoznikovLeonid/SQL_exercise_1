@@ -54,10 +54,21 @@ CREATE TABLE table_products (
     price NUMERIC NOT NULL CHECK ( price >= 0.0 ),
     measurement_unit TEXT CHECK ( name != '' ),
     measurement_value NUMERIC CHECK ( measurement_value >= 0.0 ),
+    is_archived BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (type_id) REFERENCES table_product_types(id)
         ON DELETE NO ACTION
         ON UPDATE NO ACTION,
     FOREIGN KEY (manufacturer_id) REFERENCES table_manufacturers(id)
+        ON DELETE NO ACTION
+        ON UPDATE NO ACTION
+);
+
+-- Товар должен помещаться в архив, когда его количество становится 0
+CREATE TABLE table_archived_products_log (
+    id SERIAL NOT NULL PRIMARY KEY,
+    product_id INT NOT NULL,
+    change_date DATE NOT NULL,
+    FOREIGN KEY (product_id) REFERENCES table_products(id)
         ON DELETE NO ACTION
         ON UPDATE NO ACTION
 );
@@ -78,7 +89,26 @@ CREATE TABLE table_employees (
     position_id INT NOT NULL,
     hiring_date DATE NOT NULL,
     salary NUMERIC NOT NULL CHECK ( salary >= 0.0 ),
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (person_id) REFERENCES table_persons(id)
+        ON DELETE NO ACTION
+        ON UPDATE NO ACTION,
+    FOREIGN KEY (position_id) REFERENCES table_positions(id)
+        ON DELETE NO ACTION
+        ON UPDATE NO ACTION
+);
+
+CREATE TABLE employee_history (
+    id SERIAL NOT NULL PRIMARY KEY,
+    employee_id INT NOT NULL,
+    supervisor_id INT NOT NULL,
+    position_id INT NOT NULL,
+    change_date DATE NOT NULL,
+    change_reason TEXT CHECK ( change_reason != '' ),
+    FOREIGN KEY (employee_id) REFERENCES table_employees(id)
+        ON DELETE NO ACTION
+        ON UPDATE NO ACTION,
+    FOREIGN KEY (supervisor_id) REFERENCES table_employees(id)
         ON DELETE NO ACTION
         ON UPDATE NO ACTION,
     FOREIGN KEY (position_id) REFERENCES table_positions(id)
@@ -90,10 +120,8 @@ CREATE TABLE table_price_history (
     id SERIAL NOT NULL PRIMARY KEY,
     product_id INT NOT NULL,
     employee_id INT NOT NULL,
-    old_cost_price NUMERIC NOT NULL CHECK ( old_cost_price >= 0.0 ),
-    new_cost_price NUMERIC NOT NULL CHECK ( new_cost_price >= 0.0 ),
-    old_price NUMERIC NOT NULL CHECK ( old_price >= 0.0 ),
-    new_price NUMERIC NOT NULL CHECK ( new_price >= 0.0 ),
+    cost_price NUMERIC NOT NULL CHECK ( cost_price >= 0.0 ),
+    price NUMERIC NOT NULL CHECK ( price >= 0.0 ),
     change_date DATE NOT NULL,
     change_reason TEXT CHECK ( change_reason != '' ),
     FOREIGN KEY (product_id) REFERENCES table_products(id)
@@ -109,6 +137,7 @@ CREATE TABLE table_clients (
     person_id INT NOT NULL,
     discount_percent NUMERIC(3, 2) NOT NULL CHECK ( discount_percent < 1.00 AND discount_percent >= 0.00) DEFAULT 0.00,
     is_subscribed_to_mailing_list BOOLEAN NOT NULL DEFAULT FALSE,
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
     FOREIGN KEY (person_id) REFERENCES table_persons(id)
         ON DELETE NO ACTION
         ON UPDATE NO ACTION
@@ -154,3 +183,28 @@ CREATE TABLE table_sales (
         ON DELETE NO ACTION
         ON UPDATE NO ACTION
 );
+
+CREATE FUNCTION function_archive_product()
+    RETURNS TRIGGER
+    LANGUAGE plpgsql
+AS
+$$
+BEGIN
+    IF (tg_table_name == 'table_products') THEN
+        IF (NEW.amount_in_stock = 0 AND NEW.is_archived = FALSE) THEN
+            NEW.is_archived = TRUE;
+            INSERT INTO table_archived_products_log(product_id, change_date)
+            VALUES (NEW.id, current_date);
+        ELSEIF (NEW.amount_in_stock > 0 AND NEW.is_archived = TRUE) THEN
+            NEW.is_archived = FALSE;
+        END IF;
+    END IF;
+END;
+$$;
+
+
+CREATE TRIGGER trigger_archive_product
+    BEFORE UPDATE
+    ON table_products
+    FOR EACH ROW
+    EXECUTE FUNCTION function_archive_product();
